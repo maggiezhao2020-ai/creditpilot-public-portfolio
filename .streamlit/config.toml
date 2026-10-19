@@ -1,0 +1,7 @@
+[theme]
+primaryColor = "#12577a"
+backgroundColor = "#f4f7f9"
+textColor = "#172b3a"
+
+[server]
+enableXsrfProtection = true

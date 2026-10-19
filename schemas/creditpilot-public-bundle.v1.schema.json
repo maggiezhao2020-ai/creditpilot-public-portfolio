@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "enum": [
+        "creditpilot-public-bundle.v1"
+      ]
+    },
+    "artifact_version": {
+      "enum": [
+        "1.1.0"
+      ]
+    },
+    "exporter_version": {
+      "enum": [
+        "public-exporter.v1"
+      ]
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?\\+00:00$",
+      "format": "date-time"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scenario_id": {
+            "enum": [
+              "CP-001",
+              "CP-002",
+              "CP-003"
+            ]
+          },
+          "filename": {
+            "enum": [
+              "cp-001.json",
+              "cp-002.json",
+              "cp-003.json"
+            ]
+          },
+          "schema_version": {
+            "enum": [
+              "creditpilot-public-golden.v1"
+            ]
+          },
+          "payload_sha256": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "file_sha256": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "filename",
+          "schema_version",
+          "payload_sha256",
+          "file_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "integrity": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "sha256"
+          ]
+        },
+        "canonicalization": {
+          "enum": [
+            "creditpilot-json-v1"
+          ]
+        },
+        "payload_sha256": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "algorithm",
+        "canonicalization",
+        "payload_sha256"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_version",
+    "exporter_version",
+    "generated_at_utc",
+    "artifacts",
+    "integrity"
+  ],
+  "additionalProperties": false
+}
