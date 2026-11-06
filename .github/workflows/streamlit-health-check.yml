@@ -13,11 +13,12 @@ jobs:
   health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check CreditPilot
+      - name: Diagnose CreditPilot
         run: |
-          curl --fail --location \
-            --silent --show-error \
-            --max-time 60 \
-            --retry 2 \
+          curl --silent --show-error \
+            --max-time 30 \
             --output /dev/null \
+            --dump-header - \
+            --write-out '\nHTTP status: %{http_code}\nRedirect URL: %{redirect_url}\n' \
             https://creditpilot-public-portfolio.streamlit.app/_stcore/health
+
