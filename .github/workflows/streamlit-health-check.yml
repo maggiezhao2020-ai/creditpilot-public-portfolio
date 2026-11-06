@@ -1,0 +1,23 @@
+
+name: CreditPilot Health Check
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CreditPilot
+        run: |
+          curl --fail --location \
+            --silent --show-error \
+            --max-time 60 \
+            --retry 2 \
+            --output /dev/null \
+            https://creditpilot-public-portfolio.streamlit.app/_stcore/health
