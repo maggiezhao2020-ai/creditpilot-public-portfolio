@@ -1,4 +1,5 @@
 
+
 name: CreditPilot Browser Health Check
 
 on:
@@ -30,23 +31,43 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
-              page.goto(
-                  URL,
-                  wait_until="domcontentloaded",
-                  timeout=60000,
-              )
 
-              page.locator(
-                  '[data-testid="stAppViewContainer"]'
-              ).wait_for(timeout=90000)
+              try:
+                  response = page.goto(
+                      URL,
+                      wait_until="domcontentloaded",
+                      timeout=60000,
+                  )
 
-              page.screenshot(
-                  path="creditpilot-health.png",
-                  full_page=True,
-              )
+                  print(
+                      "HTTP status:",
+                      response.status if response else "N/A",
+                      flush=True,
+                  )
+                  print("Final URL:", page.url, flush=True)
+                  print("Page title:", page.title(), flush=True)
 
-              print("CreditPilot Streamlit page loaded")
-              browser.close()
+                  page.screenshot(
+                      path="creditpilot-health.png",
+                      full_page=True,
+                  )
+
+                  if "share.streamlit.io/-/auth/" in page.url:
+                      raise RuntimeError(
+                          "Redirected to Streamlit authentication"
+                      )
+
+                  page.locator(
+                      '[data-testid="stAppViewContainer"]'
+                  ).wait_for(timeout=30000)
+
+                  print(
+                      "CreditPilot Streamlit container found",
+                      flush=True,
+                  )
+
+              finally:
+                  browser.close()
           PY
 
       - name: Upload screenshot
