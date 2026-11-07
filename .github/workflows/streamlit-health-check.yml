@@ -23,12 +23,16 @@ jobs:
       - name: Check CreditPilot
         run: |
           python - <<'PY'
-          from playwright.sync_api import (
-              sync_playwright,
-              TimeoutError as PlaywrightTimeout
-          )
+          import time
+          from playwright.sync_api import sync_playwright
 
           URL = "https://creditpilot-public-portfolio.streamlit.app/"
+
+          REQUIRED_TEXT = [
+              "Credit Risk Intelligence",
+              "Golden Scenario Explorer",
+              "Bundle Verified",
+          ]
 
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
@@ -43,47 +47,50 @@ jobs:
                       timeout=60000
                   )
 
-                  print("Final URL:", page.url, flush=True)
+                  print("HTTP:", response.status if response else "N/A")
+                  print("URL:", page.url)
 
                   if "share.streamlit.io/-/auth/" in page.url:
-                      raise RuntimeError(
-                          "Redirected to authentication"
+                      raise RuntimeError("Authentication redirect")
+
+                  # Wait up to 90 seconds for portfolio content
+                  deadline = time.monotonic() + 90
+                  missing = REQUIRED_TEXT
+
+                  while time.monotonic() < deadline:
+                      body = page.locator("body").inner_text(
+                          timeout=10000
                       )
 
-                  # Verify actual CreditPilot content
-                  page.get_by_text(
-                      "Credit Risk Intelligence, Built for Explainable Decisions.",
-                      exact=True
-                  ).wait_for(
-                      state="visible",
-                      timeout=90000
-                  )
+                      missing = [
+                          text for text in REQUIRED_TEXT
+                          if text not in body
+                      ]
 
-                  page.get_by_text(
-                      "Golden Scenario Explorer",
-                      exact=True
-                  ).wait_for(
-                      state="visible",
-                      timeout=15000
-                  )
+                      if not missing:
+                          break
+
+                      print("Waiting for:", missing, flush=True)
+                      page.wait_for_timeout(5000)
 
                   page.screenshot(
                       path="creditpilot-health.png",
                       full_page=True
                   )
 
+                  if missing:
+                      raise RuntimeError(
+                          "Missing portfolio content: "
+                          + ", ".join(missing)
+                      )
+
                   print(
-                      "SUCCESS: CreditPilot portfolio is visible",
+                      "SUCCESS: CreditPilot portfolio loaded",
                       flush=True
                   )
 
               except Exception as error:
-                  print(
-                      "HEALTH CHECK FAILED:",
-                      str(error),
-                      flush=True
-                  )
-
+                  print("FAILED:", error, flush=True)
                   try:
                       page.screenshot(
                           path="creditpilot-health.png",
@@ -92,7 +99,6 @@ jobs:
                       )
                   except Exception:
                       pass
-
                   raise
 
               finally:
