@@ -28,12 +28,6 @@ jobs:
 
           URL = "https://creditpilot-public-portfolio.streamlit.app/"
 
-          REQUIRED_TEXT = [
-              "Credit Risk Intelligence",
-              "Golden Scenario Explorer",
-              "Bundle Verified",
-          ]
-
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page(
@@ -50,27 +44,36 @@ jobs:
                   print("HTTP:", response.status if response else "N/A")
                   print("URL:", page.url)
 
-                  if "share.streamlit.io/-/auth/" in page.url:
-                      raise RuntimeError("Authentication redirect")
+                  if response is None or response.status != 200:
+                      raise RuntimeError("HTTP check failed")
 
-                  # Wait up to 90 seconds for portfolio content
+                  required = [
+                      "Credit Risk Intelligence",
+                      "Golden Scenario Explorer",
+                      "Bundle Verified"
+                  ]
+
                   deadline = time.monotonic() + 90
-                  missing = REQUIRED_TEXT
 
                   while time.monotonic() < deadline:
-                      body = page.locator("body").inner_text(
-                          timeout=10000
+                      found = []
+
+                      for text in required:
+                          locator = page.get_by_text(
+                              text,
+                              exact=False
+                          )
+                          found.append(locator.count() > 0)
+
+                      print(
+                          "Text checks:",
+                          dict(zip(required, found)),
+                          flush=True
                       )
 
-                      missing = [
-                          text for text in REQUIRED_TEXT
-                          if text not in body
-                      ]
-
-                      if not missing:
+                      if all(found):
                           break
 
-                      print("Waiting for:", missing, flush=True)
                       page.wait_for_timeout(5000)
 
                   page.screenshot(
@@ -78,10 +81,9 @@ jobs:
                       full_page=True
                   )
 
-                  if missing:
+                  if not all(found):
                       raise RuntimeError(
-                          "Missing portfolio content: "
-                          + ", ".join(missing)
+                          "CreditPilot content not detected"
                       )
 
                   print(
