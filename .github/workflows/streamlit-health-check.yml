@@ -20,11 +20,13 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Diagnose CreditPilot browser
+      - name: Check CreditPilot
         run: |
           python - <<'PY'
-          import time
-          from playwright.sync_api import sync_playwright
+          from playwright.sync_api import (
+              sync_playwright,
+              TimeoutError as PlaywrightTimeout
+          )
 
           URL = "https://creditpilot-public-portfolio.streamlit.app/"
 
@@ -34,41 +36,6 @@ jobs:
                   viewport={"width": 1440, "height": 900}
               )
 
-              errors = []
-              websockets = []
-
-              page.on(
-                  "pageerror",
-                  lambda error: errors.append(str(error))
-              )
-
-              page.on(
-                  "console",
-                  lambda msg: errors.append(
-                      "Console: " + msg.text
-                  ) if msg.type == "error" else None
-              )
-
-              def on_websocket(ws):
-                  websockets.append(ws.url)
-                  print("WebSocket opened:", ws.url, flush=True)
-                  ws.on(
-                      "close",
-                      lambda _: print(
-                          "WebSocket closed:", ws.url,
-                          flush=True
-                      )
-                  )
-                  ws.on(
-                      "socketerror",
-                      lambda error: print(
-                          "WebSocket error:", str(error),
-                          flush=True
-                      )
-                  )
-
-              page.on("websocket", on_websocket)
-
               try:
                   response = page.goto(
                       URL,
@@ -76,80 +43,67 @@ jobs:
                       timeout=60000
                   )
 
-                  print(
-                      "HTTP status:",
-                      response.status if response else "N/A",
-                      flush=True
-                  )
                   print("Final URL:", page.url, flush=True)
-                  print("Title:", page.title(), flush=True)
 
-                  # Wait for Streamlit to render
-                  for i in range(12):
-                      time.sleep(5)
-
-                      count = page.locator(
-                          '[data-testid="stAppViewContainer"]'
-                      ).count()
-
-                      print(
-                          f"Check {i+1}: container={count}",
-                          flush=True
+                  if "share.streamlit.io/-/auth/" in page.url:
+                      raise RuntimeError(
+                          "Redirected to authentication"
                       )
 
-                      if count > 0:
-                          break
-
-                  print(
-                      "Final URL:", page.url,
-                      flush=True
+                  # Verify actual CreditPilot content
+                  page.get_by_text(
+                      "Credit Risk Intelligence, Built for Explainable Decisions.",
+                      exact=True
+                  ).wait_for(
+                      state="visible",
+                      timeout=90000
                   )
 
-                  print(
-                      "Body preview:",
-                      page.locator("body").inner_text()[:500],
-                      flush=True
-                  )
-
-                  print(
-                      "WebSocket count:",
-                      len(websockets),
-                      flush=True
-                  )
-
-                  print(
-                      "JavaScript errors:",
-                      errors[:10],
-                      flush=True
-                  )
-
-                  page.screenshot(
-                      path="creditpilot-diagnostic.png",
-                      full_page=True,
+                  page.get_by_text(
+                      "Golden Scenario Explorer",
+                      exact=True
+                  ).wait_for(
+                      state="visible",
                       timeout=15000
                   )
 
-                  if page.locator(
-                      '[data-testid="stAppViewContainer"]'
-                  ).count() == 0:
-                      raise RuntimeError(
-                          "Streamlit application did not render"
-                      )
+                  page.screenshot(
+                      path="creditpilot-health.png",
+                      full_page=True
+                  )
 
                   print(
-                      "SUCCESS: Streamlit container detected",
+                      "SUCCESS: CreditPilot portfolio is visible",
                       flush=True
                   )
+
+              except Exception as error:
+                  print(
+                      "HEALTH CHECK FAILED:",
+                      str(error),
+                      flush=True
+                  )
+
+                  try:
+                      page.screenshot(
+                          path="creditpilot-health.png",
+                          full_page=True,
+                          timeout=10000
+                      )
+                  except Exception:
+                      pass
+
+                  raise
 
               finally:
                   browser.close()
           PY
 
-      - name: Upload diagnostic screenshot
+      - name: Upload screenshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: creditpilot-diagnostic
-          path: creditpilot-diagnostic.png
+          name: creditpilot-health-screenshot
+          path: creditpilot-health.png
           if-no-files-found: ignore
           retention-days: 7
