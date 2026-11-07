@@ -1,5 +1,5 @@
 
-name: CreditPilot Health Check
+name: CreditPilot Browser Health Check
 
 on:
   schedule:
@@ -12,13 +12,48 @@ permissions:
 jobs:
   health-check:
     runs-on: ubuntu-latest
-    steps:
-      - name: Diagnose CreditPilot
-        run: |
-          curl --silent --show-error \
-            --max-time 30 \
-            --output /dev/null \
-            --dump-header - \
-            --write-out '\nHTTP status: %{http_code}\nRedirect URL: %{redirect_url}\n' \
-            https://creditpilot-public-portfolio.streamlit.app/_stcore/health
+    timeout-minutes: 5
 
+    steps:
+      - name: Install Playwright
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Check CreditPilot in browser
+        run: |
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          URL = "https://creditpilot-public-portfolio.streamlit.app/"
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.goto(
+                  URL,
+                  wait_until="domcontentloaded",
+                  timeout=60000,
+              )
+
+              page.locator(
+                  '[data-testid="stAppViewContainer"]'
+              ).wait_for(timeout=90000)
+
+              page.screenshot(
+                  path="creditpilot-health.png",
+                  full_page=True,
+              )
+
+              print("CreditPilot Streamlit page loaded")
+              browser.close()
+          PY
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creditpilot-health-screenshot
+          path: creditpilot-health.png
+          if-no-files-found: ignore
+          retention-days: 7
