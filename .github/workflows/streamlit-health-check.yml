@@ -28,6 +28,31 @@ jobs:
 
           URL = "https://creditpilot-public-portfolio.streamlit.app/"
 
+          REQUIRED = [
+              "Credit Risk Intelligence",
+              "Golden Scenario Explorer",
+              "Bundle Verified",
+          ]
+
+          JS_TEXT = """
+          () => {
+            function collect(root) {
+              let result = root.innerText || "";
+              const walker = document.createTreeWalker(
+                root, NodeFilter.SHOW_ELEMENT
+              );
+              let node;
+              while ((node = walker.nextNode())) {
+                if (node.shadowRoot) {
+                  result += " " + collect(node.shadowRoot);
+                }
+              }
+              return result;
+            }
+            return collect(document.body);
+          }
+          """
+
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page(
@@ -41,37 +66,39 @@ jobs:
                       timeout=60000
                   )
 
-                  print("HTTP:", response.status if response else "N/A")
-                  print("URL:", page.url)
-
-                  if response is None or response.status != 200:
+                  if not response or response.status != 200:
                       raise RuntimeError("HTTP check failed")
 
-                  required = [
-                      "Credit Risk Intelligence",
-                      "Golden Scenario Explorer",
-                      "Bundle Verified"
-                  ]
-
                   deadline = time.monotonic() + 90
+                  success = False
 
                   while time.monotonic() < deadline:
-                      found = []
+                      for frame in page.frames:
+                          try:
+                              content = frame.evaluate(JS_TEXT)
 
-                      for text in required:
-                          locator = page.get_by_text(
-                              text,
-                              exact=False
-                          )
-                          found.append(locator.count() > 0)
+                              found = {
+                                  key: key in content
+                                  for key in REQUIRED
+                              }
 
-                      print(
-                          "Text checks:",
-                          dict(zip(required, found)),
-                          flush=True
-                      )
+                              print(
+                                  "Frame:", frame.url,
+                                  "Checks:", found,
+                                  flush=True
+                              )
 
-                      if all(found):
+                              if all(found.values()):
+                                  success = True
+                                  break
+
+                          except Exception as e:
+                              print(
+                                  "Frame error:", str(e),
+                                  flush=True
+                              )
+
+                      if success:
                           break
 
                       page.wait_for_timeout(5000)
@@ -81,7 +108,7 @@ jobs:
                       full_page=True
                   )
 
-                  if not all(found):
+                  if not success:
                       raise RuntimeError(
                           "CreditPilot content not detected"
                       )
@@ -90,18 +117,6 @@ jobs:
                       "SUCCESS: CreditPilot portfolio loaded",
                       flush=True
                   )
-
-              except Exception as error:
-                  print("FAILED:", error, flush=True)
-                  try:
-                      page.screenshot(
-                          path="creditpilot-health.png",
-                          full_page=True,
-                          timeout=10000
-                      )
-                  except Exception:
-                      pass
-                  raise
 
               finally:
                   browser.close()
